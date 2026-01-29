@@ -1,5 +1,5 @@
 // zero_waste_generator.js
-// Minimal Zero-Waste Recipe Generator prototype (Node.js, no dependencies)
+// Zero-Waste Recipe Generator prototype (Node.js, no dependencies)
 
 const fs = require("fs");
 
@@ -9,6 +9,10 @@ function normalize(text) {
     .replace(/[^a-z0-9\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function escapeRegExp(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 // Simple CSV parser that handles quoted fields and commas inside quotes
@@ -41,7 +45,6 @@ function parseCSV(csvText) {
 
     if ((char === "\n" || char === "\r") && !inQuotes) {
       if (char === "\r" && next === "\n") i++;
-
       row.push(cell);
       cell = "";
 
@@ -63,55 +66,148 @@ function parseCSV(csvText) {
   return rows;
 }
 
+function parseIndexFromName(name, prefix) {
+  // e.g. Unit01 -> 1, Ingredient18 -> 18, Quantity02 -> 2
+  const re = new RegExp(`^${prefix}(\\d+)$`, "i");
+  const m = name.match(re);
+  if (!m) return null;
+  return parseInt(m[1], 10);
+}
+
+function buildMeasuredIngredient(qty, unit, ing) {
+  const q = (qty || "").trim();
+  const u = (unit || "").trim();
+  const i = (ing || "").trim();
+
+  if (!i) return "";
+
+  // Build a readable line like "2 tbsp olive oil" or "1 onion, chopped"
+  const parts = [];
+  if (q) parts.push(q);
+  if (u) parts.push(u);
+  parts.push(i);
+
+  return parts.join(" ");
+}
+
 function loadRecipes(csvPath) {
   const text = fs.readFileSync(csvPath, "utf8");
   const rows = parseCSV(text);
   if (rows.length < 2) throw new Error("CSV seems empty or missing header.");
 
-  const header = rows[0];
+  const header = rows[0].map((h) => (h || "").trim());
+  const headerLower = header.map((h) => h.toLowerCase());
+
   const idxTitle = header.indexOf("Title");
   const idxDirections = header.indexOf("Directions");
 
-  const ingredientIdxs = header
-    .map((h, i) => ({ h: h.toLowerCase(), i }))
-    .filter((x) => x.h.startsWith("ingredient"))
-    .map((x) => x.i);
-
   if (idxTitle === -1) throw new Error('Missing "Title" column.');
   if (idxDirections === -1) throw new Error('Missing "Directions" column.');
-  if (ingredientIdxs.length === 0) throw new Error("No Ingredient columns found.");
+
+  // This dataset uses Quantity + UnitXX + IngredientXX
+  // Note: first Quantity column may be named "Quantity" (no number)
+  const qtyByIndex = new Map();   // index -> column position
+  const unitByIndex = new Map();  // index -> column position
+  const ingByIndex = new Map();   // index -> column position
+
+  for (let i = 0; i < header.length; i++) {
+    const name = header[i];
+
+    if (!name) continue;
+
+    // Quantity (no number) is treated as Quantity01
+    if (name.toLowerCase() === "quantity") {
+      qtyByIndex.set(1, i);
+      continue;
+    }
+
+    const qIdx = parseIndexFromName(name, "Quantity");
+    if (qIdx !== null) {
+      qtyByIndex.set(qIdx, i);
+      continue;
+    }
+
+    const uIdx = parseIndexFromName(name, "Unit");
+    if (uIdx !== null) {
+      unitByIndex.set(uIdx, i);
+      continue;
+    }
+
+    const ingIdx = parseIndexFromName(name, "Ingredient");
+    if (ingIdx !== null) {
+      ingByIndex.set(ingIdx, i);
+      continue;
+    }
+  }
+
+  // Determine max ingredient slot present
+  const maxIdx = Math.max(
+    1,
+    ...Array.from(ingByIndex.keys())
+  );
 
   const recipes = [];
 
   for (let r = 1; r < rows.length; r++) {
     const row = rows[r];
+
     const title = (row[idxTitle] || "").trim();
     const directions = (row[idxDirections] || "").trim();
 
-    const ingredientsRaw = ingredientIdxs
-      .map((i) => (row[i] || "").trim())
-      .filter((v) => v.length > 0);
+    if (!title) continue;
 
-    if (!title || ingredientsRaw.length === 0) continue;
+    const ingredientsMeasured = [];
+    const ingredientsForMatching = [];
+
+    for (let k = 1; k <= maxIdx; k++) {
+      const qty = qtyByIndex.has(k) ? row[qtyByIndex.get(k)] : "";
+      const unit = unitByIndex.has(k) ? row[unitByIndex.get(k)] : "";
+      const ing = ingByIndex.has(k) ? row[ingByIndex.get(k)] : "";
+
+      const line = buildMeasuredIngredient(qty, unit, ing);
+      if (!line) continue;
+
+      ingredientsMeasured.push(line);
+      ingredientsForMatching.push(ing); // match against ingredient text only
+    }
+
+    if (ingredientsMeasured.length === 0) continue;
 
     recipes.push({
       title,
       directions,
-      ingredientsRaw,
-      ingredientsNorm: ingredientsRaw.map(normalize),
+      ingredientsMeasured,
+      ingredientsNorm: ingredientsForMatching.map((x) => normalize(x)),
     });
   }
 
   return recipes;
 }
 
-function countMatches(recipe, userNorm) {
+function isIngredientMatch(recipeIngredientNorm, userIngredientNorm, strictMode) {
+  if (!userIngredientNorm) return false;
+
+  if (!strictMode) {
+    return recipeIngredientNorm.includes(userIngredientNorm);
+  }
+
+  const re = new RegExp(`\\b${escapeRegExp(userIngredientNorm)}\\b`, "i");
+  return re.test(recipeIngredientNorm);
+}
+
+function countMatches(recipe, userNorm, strictMode) {
   let count = 0;
+
   for (const ui of userNorm) {
     if (!ui) continue;
-    const hit = recipe.ingredientsNorm.some((ri) => ri.includes(ui));
+
+    const hit = recipe.ingredientsNorm.some((ri) =>
+      isIngredientMatch(ri, ui, strictMode)
+    );
+
     if (hit) count++;
   }
+
   return count;
 }
 
@@ -121,10 +217,24 @@ function formatRecipe(recipe, matched) {
   lines.push(`MATCHED: ${matched.length ? matched.join(", ") : "none"}`);
   lines.push("");
   lines.push("INGREDIENTS:");
-  for (const ing of recipe.ingredientsRaw) lines.push(`- ${ing}`);
+  for (const ingLine of recipe.ingredientsMeasured) lines.push(`- ${ingLine}`);
   lines.push("");
   lines.push("DIRECTIONS:");
-  lines.push(recipe.directions || "(No directions provided)");
+
+  const dir = (recipe.directions || "").trim();
+  if (!dir) {
+    lines.push("(No directions provided)");
+  } else {
+    const steps = dir
+      .split(".")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+
+    for (let i = 0; i < steps.length; i++) {
+      lines.push(`${i + 1}. ${steps[i]}.`);
+    }
+  }
+
   return lines.join("\n");
 }
 
@@ -139,18 +249,27 @@ function hasFlag(name) {
 }
 
 function main() {
+  // If you want, you can change the default here to "recipes_forimport.csv"
   const csvPath = getArg("--csv", "recipes.csv");
+
   const ingredientsArg = getArg("--ingredients", "");
   const threshold = parseInt(getArg("--threshold", "2"), 10);
   const maxOut = parseInt(getArg("--max", "5"), 10);
   const randomize = hasFlag("--random");
+  const strictMode = hasFlag("--strict");
 
   if (!ingredientsArg.trim()) {
-    console.log('Usage: node zero_waste_generator.js --ingredients "rice, egg" --threshold 1 --max 3');
+    console.log(
+      'Usage: node zero_waste_generator.js --ingredients "rice, egg" --threshold 1 --max 3 [--strict] [--random] [--csv recipes.csv]'
+    );
     process.exit(1);
   }
 
-  const userIngredients = ingredientsArg.split(",").map((s) => s.trim()).filter(Boolean);
+  const userIngredients = ingredientsArg
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
   const userNorm = userIngredients.map(normalize);
 
   console.log("Loading CSV:", csvPath);
@@ -158,7 +277,7 @@ function main() {
   console.log("Loaded recipes:", recipes.length);
 
   let matches = recipes
-    .map((r) => ({ recipe: r, score: countMatches(r, userNorm) }))
+    .map((r) => ({ recipe: r, score: countMatches(r, userNorm, strictMode) }))
     .filter((x) => x.score >= threshold)
     .sort((a, b) => b.score - a.score);
 
@@ -166,6 +285,7 @@ function main() {
     console.log("No matches found.");
     console.log(`Input ingredients: ${userIngredients.join(", ")}`);
     console.log(`Threshold: ${threshold}`);
+    console.log(`Strict mode: ${strictMode ? "ON" : "OFF"}`);
     return;
   }
 
@@ -179,6 +299,7 @@ function main() {
   console.log("ZERO-WASTE RECIPE GENERATOR OUTPUT");
   console.log(`Input ingredients: ${userIngredients.join(", ")}`);
   console.log(`Threshold: ${threshold}`);
+  console.log(`Strict mode: ${strictMode ? "ON" : "OFF"}`);
   console.log(`Matches found: ${matches.length}`);
   console.log("=".repeat(60));
 
@@ -190,7 +311,12 @@ function main() {
     for (let i = 0; i < userIngredients.length; i++) {
       const ui = userIngredients[i];
       const uiN = userNorm[i];
-      if (r.ingredientsNorm.some((ri) => ri.includes(uiN))) matched.push(ui);
+
+      const ok = r.ingredientsNorm.some((ri) =>
+        isIngredientMatch(ri, uiN, strictMode)
+      );
+
+      if (ok) matched.push(ui);
     }
 
     console.log(formatRecipe(r, matched));
