@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Zero-Waste Recipe Generator</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+
+  <body>
+    <main class="wrap">
+      <header class="header">
+        <h1>Zero-Waste Recipe Generator</h1>
+        <p class="sub">
+          Turn what you already have into something worth cooking. Type ingredients, then tune the knobs if you want tighter or looser matching.
+        </p>
+      </header>
+
+      <section class="panel">
+        <div class="row">
+          <label class="label" for="ingredients">Ingredients</label>
+          <input
+            id="ingredients"
+            class="input"
+            type="text"
+            placeholder="rice, egg, tomato"
+            autocomplete="off"
+          />
+        </div>
+
+        <div class="controls">
+          <div class="row">
+            <label class="label" for="threshold">Threshold</label>
+            <input id="threshold" class="input" type="number" min="1" value="2" />
+          </div>
+
+          <div class="row">
+            <label class="label" for="maxOut">Max outputs</label>
+            <input id="maxOut" class="input" type="number" min="1" value="5" />
+          </div>
+
+          <div class="row">
+            <div class="label">Options</div>
+            <div class="checkRow">
+              <label class="check">
+                <input id="strict" type="checkbox" />
+                <span>Strict match</span>
+              </label>
+
+              <label class="check">
+                <input id="randomize" type="checkbox" />
+                <span>Randomize</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button id="generate" class="btn primary">Generate recipes</button>
+          <span id="clear" class="link" role="button" tabindex="0">Clear</span>
+        </div>
+
+        <div class="meta">
+          <div id="status" class="status">Loading recipes...</div>
+          <div id="stats" class="stats"></div>
+        </div>
+      </section>
+
+      <section id="results" class="results"></section>
+
+      <footer class="footer">
+        <span id="footerNote"></span>
+      </footer>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
