@@ -1,120 +1,73 @@
 # Zero-Waste Recipe Generator
-Overview
 
-The Zero-Waste Recipe Generator is a small procedural tool that helps users discover recipes based on ingredients they already have. By filtering an existing recipe dataset using ingredient constraints, the generator aims to reduce food waste and teach users how to cook with limited or leftover ingredients. The system outputs full recipes including measured ingredients and step-by-step directions.
+The Zero-Waste Recipe Generator is a standalone generative tool that helps users discover recipes using ingredients they already have. Instead of creating new recipes, the system searches an existing dataset and surfaces recipes that best match the user’s inputs.
 
-Core goals:
+# What the Tool Generates
 
-Reduce food waste
+For a given list of ingredients, the generator outputs:
 
-Encourage resourceful cooking
+Recipe titles
+Full ingredient lists with quantities and units
+Numbered cooking directions
+Indicators showing which input ingredients matched
 
-Demonstrate how constraints can drive procedural systems
+All results come from an existing recipe dataset.
 
-# How It Works
+# How to Run the Tool
 
-The generator:
+GitHub Pages (Primary)
 
-Loads recipes from a CSV dataset
+This tool is hosted using GitHub Pages.
 
-Accepts a comma-separated list of ingredients the user wants to use up
+Open the GitHub Pages link for this repository.
+The generator loads automatically in the browser.
+No installation or setup is required.
 
-Compares those ingredients against each recipe’s ingredient list
+# Local Version 
 
-Filters recipes based on an ingredient match threshold
+If running locally, all files must be inside the docs folder:
 
-Prints matched recipes with measured ingredients and numbered steps
+index.html
+style.css
+app.js
+recipes_forimport.csv
 
-This is a constraint-driven selection tool. It does not invent new recipes. It surfaces existing recipes that fit the user’s inputs.
+Start a local server, for example:
+
+python -m http.server
+
+Then open http://localhost:8000/docs/
+
+# How to Use
+
+Enter ingredients as a comma-separated list, for example:
+
+rice, egg, tomato
+
+Adjust parameters if desired.
+Click Generate recipes or press Enter.
+Each run replaces the previous results.
+
+# Parameters
+
+Ingredients
+Comma-separated list of ingredients to match against recipes.
+
+Threshold
+Minimum number of ingredient matches required.
+
+Max Outputs
+Maximum number of recipes shown.
+
+Strict Match
+Requires whole-word ingredient matches.
+
+Randomize
+Shuffles matching recipes before display.
 
 # Dataset
 
-Recipes are sourced from a CSV file adapted from an open cookbook dataset. Each recipe includes:
+Recipes are loaded from a CSV dataset adapted from an open cookbook source.
+The current dataset contains approximately 227 recipes.
 
-Title
-
-Directions
-
-Ingredient fields (including quantities and units)
-
-The current dataset used in development contains 227 recipes.
-
-You may have multiple dataset files in the repo:
-
-recipes.csv
-
-recipes_forimport.csv
-
-Use the --csv flag to choose which file to load.
-
-# Requirements
-
-Node.js installed
-
-A recipe CSV file in the same directory as zero_waste_generator.js
-
-# Usage
-Run the Generator
-
-From the project folder:
-
-node zero_waste_generator.js --ingredients "rice, egg" --threshold 1 --max 2
-
-Choose a dataset file
-node zero_waste_generator.js --csv "recipes_forimport.csv" --ingredients "rice, egg" --threshold 1 --max 2
-
-Strict matching mode
-
-Strict mode uses whole-word matching. This reduces overly broad matches and demonstrates how matching rules affect output.
-
-node zero_waste_generator.js --ingredients "rice, egg" --threshold 1 --max 2 --strict
-
-# Command-Line Options
---ingredients
-Comma-separated list of ingredients you want to use up
-
---threshold
-Minimum number of ingredient matches required for a recipe to be included
-Lower values return more results, higher values return fewer and more specific results
-
---max
-Maximum number of recipes to print per run
-
---strict
-Requires stricter ingredient matching, reducing loosely related results
-
---csv (optional)
-Path to the recipe CSV file (defaults to recipes.csv)
-
---random (optional)
-Randomizes which matching recipes are shown
-
-# Example Output
-
-The generator prints:
-
-Recipe title
-
-Which input ingredients matched
-
-Full ingredient list with quantities and units
-
-Numbered cooking directions
-
-This allows users to compare how different inputs and parameters produce different results.
-
-# Output Format
-
-For each recipe, the generator prints:
-
-Recipe title
-
-Which input ingredients matched
-
-Ingredient list with measurements (quantity + unit + ingredient)
-
-Numbered directions derived from the Directions text field
-
-# Procedural Parameters
-
-The primary procedural parameters are the ingredient match threshold and strict matching mode. Adjusting these values changes how permissive or selective the system is. Increasing the threshold or enabling strict mode significantly reduces the number of valid outputs, demonstrating constraint-driven procedural variation.
+The active file is recipes.csv, located in the docs folder so it can be served by GitHub Pages.
