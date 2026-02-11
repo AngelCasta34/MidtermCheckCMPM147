@@ -1,12 +1,32 @@
 // docs/app.js
 // Browser version of the Zero-Waste Recipe Generator (no deps)
 
+// ---------- Matching helpers (plural-friendly) ----------
+
+function singularizeToken(token) {
+  const w = (token || "").trim();
+  if (!w) return "";
+
+  // light stemming for common plurals
+  if (w.endsWith("ies") && w.length > 4) return w.slice(0, -3) + "y"; // berries -> berry
+  if (w.endsWith("es") && w.length > 3) return w.slice(0, -2);        // tomatoes -> tomato (rough)
+  if (w.endsWith("s") && w.length > 3) return w.slice(0, -1);         // eggs -> egg
+  return w;
+}
+
 function normalize(text) {
-  return (text || "")
+  const cleaned = (text || "")
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+
+  if (!cleaned) return "";
+
+  return cleaned
+    .split(" ")
+    .map(singularizeToken)
+    .join(" ");
 }
 
 function escapeRegExp(str) {
@@ -236,6 +256,61 @@ function countMatches(recipe, userNorm, strictMode) {
   return count;
 }
 
+// ---------- PDF export ----------
+
+function downloadRecipePDF(recipe) {
+  // Requires jsPDF loaded in index.html
+  if (!window.jspdf || !window.jspdf.jsPDF) {
+    alert("PDF export not loaded. Add the jsPDF script tag to index.html.");
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "pt", format: "letter" });
+
+  const margin = 48;
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const maxW = pageW - margin * 2;
+
+  let y = margin;
+
+  const addWrapped = (text, fontSize = 12, lineGap = 16) => {
+    doc.setFontSize(fontSize);
+    const lines = doc.splitTextToSize(String(text || ""), maxW);
+    for (const line of lines) {
+      if (y > pageH - margin) {
+        doc.addPage();
+        y = margin;
+      }
+      doc.text(line, margin, y);
+      y += lineGap;
+    }
+  };
+
+  // Title
+  addWrapped(recipe.title, 18, 22);
+  y += 6;
+
+  // Ingredients
+  addWrapped("Ingredients:", 13, 18);
+  recipe.ingredientsMeasured.forEach((ing) => addWrapped(`- ${ing}`, 12, 16));
+
+  y += 8;
+
+  // Directions
+  addWrapped("Directions:", 13, 18);
+  const steps = splitDirectionsSmart(recipe.directions);
+  if (steps.length === 0) {
+    addWrapped("(No directions provided)", 12, 16);
+  } else {
+    steps.forEach((step, i) => addWrapped(`${i + 1}. ${step}`, 12, 16));
+  }
+
+  const safeName = recipe.title.replace(/[\/\\:*?"<>|]+/g, "").trim() || "recipe";
+  doc.save(`${safeName}.pdf`);
+}
+
 // ---------- UI ----------
 
 const els = {
@@ -298,6 +373,12 @@ function renderResults(matches, userIngredients, strictMode, threshold, maxOut) 
     head.appendChild(title);
     head.appendChild(badges);
 
+    // Download PDF button (per recipe)
+    const dl = document.createElement("button");
+    dl.className = "btn";
+    dl.textContent = "Download PDF";
+    dl.addEventListener("click", () => downloadRecipePDF(r));
+
     const ingTitle = document.createElement("div");
     ingTitle.className = "sectionTitle";
     ingTitle.textContent = "INGREDIENTS";
@@ -331,6 +412,7 @@ function renderResults(matches, userIngredients, strictMode, threshold, maxOut) 
     }
 
     card.appendChild(head);
+    card.appendChild(dl);
     card.appendChild(ingTitle);
     card.appendChild(ingList);
     card.appendChild(dirTitle);
@@ -404,7 +486,7 @@ async function boot() {
     els.footerNote.textContent = `Loaded ${g_recipes.length} recipes from ${url}.`;
 
     if (!els.ingredients.value.trim()) {
-      els.ingredients.value = "rice, egg";
+      els.ingredients.value = "rice, eggs";
     }
 
     runGenerator();
@@ -412,7 +494,7 @@ async function boot() {
     console.error(err);
     setStatus(String(err.message || err), "error");
     els.footerNote.textContent =
-      "Check that docs/recipes.csv exists and you are running a local server.";
+      "CSV not found. Make sure recipes.csv is in the same folder as index.html inside docs/.";
   }
 }
 
