@@ -1,16 +1,14 @@
 // docs/app.js
 // Browser version of the Zero-Waste Recipe Generator (no deps)
 
-// ---------- Matching helpers (plural-friendly) ----------
-
 function singularizeToken(token) {
   const w = (token || "").trim();
   if (!w) return "";
 
   // light stemming for common plurals
-  if (w.endsWith("ies") && w.length > 4) return w.slice(0, -3) + "y"; // berries -> berry
-  if (w.endsWith("es") && w.length > 3) return w.slice(0, -2);        // tomatoes -> tomato (rough)
-  if (w.endsWith("s") && w.length > 3) return w.slice(0, -1);         // eggs -> egg
+  if (w.endsWith("ies") && w.length > 4) return w.slice(0, -3) + "y"; // berries  berry
+  if (w.endsWith("es") && w.length > 3) return w.slice(0, -2);        // tomatoes tomato 
+  if (w.endsWith("s") && w.length > 3) return w.slice(0, -1);         // eggs  egg
   return w;
 }
 
@@ -256,7 +254,7 @@ function countMatches(recipe, userNorm, strictMode) {
   return count;
 }
 
-// ---------- PDF export ----------
+//PDF generation using jsPDF (client-side, no server)
 
 function downloadRecipePDF(recipe) {
   // Requires jsPDF loaded in index.html
