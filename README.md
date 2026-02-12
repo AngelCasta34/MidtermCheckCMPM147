@@ -1,7 +1,7 @@
 # Zero-Waste Recipe Generator
 
 Live Demo:
-https://angelcasta34.github.io/MidtermCheckCMPM147/
+https://angelcasta34.github.io/MidtermCMPM147/
 
 
 # What the Tool Generates
